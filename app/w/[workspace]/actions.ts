@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { authorize, workspaceAccess } from "@/lib/access";
 import { email, text } from "@/lib/forms";
-import { invite, membersOf, ownerCount, removeMember, revokeInvitation } from "@/lib/members";
+import { addGuestProject, invite, membersOf, ownerCount, removeMember, revokeInvitation } from "@/lib/members";
 import { can, canRemoveMember } from "@/lib/permissions";
 import { archiveProject, createProject, projectIn, projectsIn } from "@/lib/projects";
 import { addComment, createTask, moveTask, statuses, taskIn, updateTask, type Status } from "@/lib/tasks";
@@ -92,6 +92,17 @@ export async function inviteAction(form: FormData) {
   } else {
     await invite(access.workspace.id, address, access.user.id, "member");
   }
+  revalidatePath(`/w/${access.workspace.slug}/members`);
+}
+
+export async function addGuestProjectAction(form: FormData) {
+  const access = await workspaceAccess(text(form, "workspace"));
+  authorize(access, "member.invite");
+  const guest = (await membersOf(access.workspace.id)).find((member) => member.user_id === text(form, "user"));
+  if (guest?.role !== "guest") throw new Error("That person isn't a guest in this workspace.");
+  const project = await projectIn(access, text(form, "project"));
+  if (!project || project.archived_at) throw new Error("Unknown project.");
+  await addGuestProject(access.workspace.id, guest.user_id, project.id);
   revalidatePath(`/w/${access.workspace.slug}/members`);
 }
 

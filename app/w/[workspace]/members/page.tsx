@@ -1,10 +1,10 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { workspaceAccess } from "@/lib/access";
-import { membersOf, ownerCount, pendingInvitations } from "@/lib/members";
+import { membersOf, ownerCount, pendingInvitations, type Member } from "@/lib/members";
 import { can, canRemoveMember, type Role } from "@/lib/permissions";
-import { projectsIn } from "@/lib/projects";
-import { inviteAction, removeMemberAction, revokeInvitationAction } from "../actions";
+import { projectsIn, type Project } from "@/lib/projects";
+import { addGuestProjectAction, inviteAction, removeMemberAction, revokeInvitationAction } from "../actions";
 
 const roleLabels: Record<Role, string> = { owner: "Owner", member: "Member", guest: "Guest" };
 
@@ -41,7 +41,8 @@ export default async function Members(props: PageProps<"/w/[workspace]/members">
                 {member.role === "guest" && (
                   <>
                     <br />
-                    <span className="hint">{member.projects.join(", ")}</span>
+                    <span className="hint">{member.projects.map((project) => project.name).join(", ")}</span>
+                    {canInvite && <AddGuestProject slug={slug} guest={member} projects={openProjects} />}
                   </>
                 )}
               </td>
@@ -122,5 +123,26 @@ export default async function Members(props: PageProps<"/w/[workspace]/members">
         </section>
       )}
     </>
+  );
+}
+
+function AddGuestProject({ slug, guest, projects }: { slug: string; guest: Member; projects: Project[] }) {
+  const addable = projects.filter((project) => !guest.projects.some((on) => on.id === project.id));
+  if (addable.length === 0) return null;
+  return (
+    <form action={addGuestProjectAction} className="add-project">
+      <input type="hidden" name="workspace" value={slug} />
+      <input type="hidden" name="user" value={guest.user_id} />
+      <select name="project" aria-label={`Add ${guest.name} to a project`}>
+        {addable.map((project) => (
+          <option key={project.id} value={project.id}>
+            {project.name}
+          </option>
+        ))}
+      </select>
+      <button type="submit" className="link">
+        Add
+      </button>
+    </form>
   );
 }

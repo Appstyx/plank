@@ -280,6 +280,16 @@ td.actions {
   font-size: 0.8rem;
   color: var(--muted);
 }
+.add-project {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
+.add-project select {
+  padding: 0.2rem 0.4rem;
+}
 .guest-form {
   max-width: 420px;
 }

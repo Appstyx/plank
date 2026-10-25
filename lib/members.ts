@@ -3,14 +3,15 @@ import { one, query, transaction } from "./db";
 import type { Role } from "./permissions";
 
 // projects lists the projects a guest is on; it's empty for owners and members, who see them all.
-export type Member = { user_id: string; name: string; email: string; role: Role; projects: string[]; joined_at: Date };
+export type Member = { user_id: string; name: string; email: string; role: Role; projects: { id: string; name: string }[]; joined_at: Date };
 export type Invitation = { id: string; email: string; token: string; role: Role; projects: string[]; invited_by_name: string; created_at: Date };
 
 export function membersOf(workspaceId: string): Promise<Member[]> {
   return query<Member>(
     `select m.user_id, u.name, u.email, m.role, m.created_at as joined_at,
-       array(select p.name from project_guests g join projects p on p.id = g.project_id
-             where g.workspace_id = m.workspace_id and g.user_id = m.user_id order by p.name) as projects
+       coalesce((select json_agg(json_build_object('id', p.id, 'name', p.name) order by p.name)
+                 from project_guests g join projects p on p.id = g.project_id
+                 where g.workspace_id = m.workspace_id and g.user_id = m.user_id), '[]') as projects
      from memberships m join users u on u.id = m.user_id where m.workspace_id = $1
      order by m.role = 'owner' desc, m.role = 'guest', u.name`,
     [workspaceId],
@@ -94,6 +95,10 @@ export async function revokeInvitation(workspaceId: string, invitationId: string
 
 export async function ownerCount(workspaceId: string): Promise<number> {
   return (await one<{ count: number }>("select count(*)::int as count from memberships where workspace_id = $1 and role = 'owner'", [workspaceId]))!.count;
+}
+
+export async function addGuestProject(workspaceId: string, userId: string, projectId: string): Promise<void> {
+  await query("insert into project_guests (workspace_id, user_id, project_id) values ($1, $2, $3) on conflict do nothing", [workspaceId, userId, projectId]);
 }
 
 // Unassigns the member's open tasks in this workspace so nothing stays assigned to someone who left.
