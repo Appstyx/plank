@@ -9,10 +9,11 @@ import { addCommentAction, updateTaskAction } from "../../actions";
 export default async function TaskPage(props: PageProps<"/w/[workspace]/tasks/[task]">) {
   const { workspace: slug, task: taskId } = await props.params;
   const access = await workspaceAccess(slug);
-  const task = await taskIn(access.workspace.id, taskId);
+  const task = await taskIn(access, taskId);
   if (!task) notFound();
   const [comments, members] = await Promise.all([commentsOn(task.id), membersOf(access.workspace.id)]);
   const canEdit = can(access.role, "task.edit");
+  const assignees = members.filter((member) => can(member.role, "task.edit"));
 
   return (
     <>
@@ -39,7 +40,7 @@ export default async function TaskPage(props: PageProps<"/w/[workspace]/tasks/[t
               Assignee
               <select name="assignee" defaultValue={task.assignee_id ?? ""}>
                 <option value="">Unassigned</option>
-                {members.map((member) => (
+                {assignees.map((member) => (
                   <option key={member.user_id} value={member.user_id}>
                     {member.name}
                   </option>

@@ -280,6 +280,37 @@ td.actions {
   font-size: 0.8rem;
   color: var(--muted);
 }
+.add-project {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
+.add-project select {
+  padding: 0.2rem 0.4rem;
+}
+.guest-form {
+  max-width: 420px;
+}
+.guest-form fieldset {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.guest-form legend {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.guest-form fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+  font-size: 1rem;
+}
 
 @media (max-width: 720px) {
   .board {

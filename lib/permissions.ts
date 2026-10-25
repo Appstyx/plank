@@ -1,5 +1,6 @@
 // What each workspace role may do. Pages hide what a role can't do; server actions enforce it with authorize().
-export type Role = "owner" | "member";
+// Guests also see only the projects they were invited to; lib/projects.ts applies that to every project and task query.
+export type Role = "owner" | "member" | "guest";
 
 export type Action =
   | "project.create"
@@ -7,12 +8,14 @@ export type Action =
   | "task.create"
   | "task.edit"
   | "task.comment"
+  | "member.view"
   | "member.invite"
   | "member.remove";
 
 const allowed: Record<Role, ReadonlySet<Action>> = {
-  owner: new Set<Action>(["project.create", "project.archive", "task.create", "task.edit", "task.comment", "member.invite", "member.remove"]),
-  member: new Set<Action>(["project.create", "task.create", "task.edit", "task.comment"]),
+  owner: new Set<Action>(["project.create", "project.archive", "task.create", "task.edit", "task.comment", "member.view", "member.invite", "member.remove"]),
+  member: new Set<Action>(["project.create", "task.create", "task.edit", "task.comment", "member.view"]),
+  guest: new Set<Action>(["task.comment"]),
 };
 
 export function can(role: Role, action: Action): boolean {

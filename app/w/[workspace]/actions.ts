@@ -5,9 +5,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { authorize, workspaceAccess } from "@/lib/access";
 import { email, text } from "@/lib/forms";
-import { invite, membersOf, ownerCount, removeMember, revokeInvitation } from "@/lib/members";
-import { canRemoveMember } from "@/lib/permissions";
-import { archiveProject, createProject, projectIn } from "@/lib/projects";
+import { addGuestProject, invite, membersOf, ownerCount, removeMember, revokeInvitation } from "@/lib/members";
+import { can, canRemoveMember } from "@/lib/permissions";
+import { archiveProject, createProject, projectIn, projectsIn } from "@/lib/projects";
 import { addComment, createTask, moveTask, statuses, taskIn, updateTask, type Status } from "@/lib/tasks";
 
 function status(form: FormData): Status {
@@ -33,7 +33,7 @@ export async function archiveProjectAction(form: FormData) {
 export async function createTaskAction(form: FormData) {
   const access = await workspaceAccess(text(form, "workspace"));
   authorize(access, "task.create");
-  const project = await projectIn(access.workspace.id, text(form, "project"));
+  const project = await projectIn(access, text(form, "project"));
   if (!project || project.archived_at) throw new Error("That project doesn't take new tasks.");
   await createTask(project.id, access.user.id, text(form, "title", { max: 160 }));
   revalidatePath(`/w/${access.workspace.slug}/projects/${project.id}`);
@@ -42,7 +42,7 @@ export async function createTaskAction(form: FormData) {
 export async function moveTaskAction(form: FormData) {
   const access = await workspaceAccess(text(form, "workspace"));
   authorize(access, "task.edit");
-  const task = await taskIn(access.workspace.id, text(form, "task"));
+  const task = await taskIn(access, text(form, "task"));
   if (!task) throw new Error("Task not found.");
   await moveTask(task.id, status(form));
   revalidatePath(`/w/${access.workspace.slug}/projects/${task.project_id}`);
@@ -51,12 +51,12 @@ export async function moveTaskAction(form: FormData) {
 export async function updateTaskAction(form: FormData) {
   const access = await workspaceAccess(text(form, "workspace"));
   authorize(access, "task.edit");
-  const task = await taskIn(access.workspace.id, text(form, "task"));
+  const task = await taskIn(access, text(form, "task"));
   if (!task) throw new Error("Task not found.");
   const assigneeId = text(form, "assignee", { optional: true }) || null;
-  // Tasks can only be assigned to people in the workspace.
-  if (assigneeId && !(await membersOf(access.workspace.id)).some((member) => member.user_id === assigneeId)) {
-    throw new Error("That person isn't in this workspace.");
+  // Tasks can only be assigned to people in the workspace who can work on them, so not to guests.
+  if (assigneeId && !(await membersOf(access.workspace.id)).some((member) => member.user_id === assigneeId && can(member.role, "task.edit"))) {
+    throw new Error("That person can't be assigned tasks in this workspace.");
   }
   await updateTask(task.id, {
     title: text(form, "title", { max: 160 }),
@@ -70,7 +70,7 @@ export async function updateTaskAction(form: FormData) {
 export async function addCommentAction(form: FormData) {
   const access = await workspaceAccess(text(form, "workspace"));
   authorize(access, "task.comment");
-  const task = await taskIn(access.workspace.id, text(form, "task"));
+  const task = await taskIn(access, text(form, "task"));
   if (!task) throw new Error("Task not found.");
   await addComment(task.id, access.user.id, text(form, "body", { max: 5000 }));
   revalidatePath(`/w/${access.workspace.slug}/tasks/${task.id}`);
@@ -83,7 +83,26 @@ export async function inviteAction(form: FormData) {
   if ((await membersOf(access.workspace.id)).some((member) => member.email.toLowerCase() === address)) {
     throw new Error(`${address} is already in this workspace.`);
   }
-  await invite(access.workspace.id, address, access.user.id);
+  if (form.get("role") === "guest") {
+    const projectIds = form.getAll("project").map(String);
+    if (projectIds.length === 0) throw new Error("Pick at least one project for the guest.");
+    const open = new Set((await projectsIn(access)).filter((project) => !project.archived_at).map((project) => project.id));
+    if (!projectIds.every((id) => open.has(id))) throw new Error("Unknown project.");
+    await invite(access.workspace.id, address, access.user.id, "guest", projectIds);
+  } else {
+    await invite(access.workspace.id, address, access.user.id, "member");
+  }
+  revalidatePath(`/w/${access.workspace.slug}/members`);
+}
+
+export async function addGuestProjectAction(form: FormData) {
+  const access = await workspaceAccess(text(form, "workspace"));
+  authorize(access, "member.invite");
+  const guest = (await membersOf(access.workspace.id)).find((member) => member.user_id === text(form, "user"));
+  if (guest?.role !== "guest") throw new Error("That person isn't a guest in this workspace.");
+  const project = await projectIn(access, text(form, "project"));
+  if (!project || project.archived_at) throw new Error("Unknown project.");
+  await addGuestProject(access.workspace.id, guest.user_id, project.id);
   revalidatePath(`/w/${access.workspace.slug}/members`);
 }
 

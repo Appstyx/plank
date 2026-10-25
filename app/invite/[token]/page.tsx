@@ -42,7 +42,11 @@ export default async function Invite(props: PageProps<"/invite/[token]">) {
   return (
     <main className="narrow">
       <h1>Join {invitation.workspace_name}</h1>
-      <p>You'll be able to see and work on every project in the workspace.</p>
+      {invitation.role === "guest" ? (
+        <p>You'll be able to read and comment on tasks in {invitation.projects.join(", ")}.</p>
+      ) : (
+        <p>You'll be able to see and work on every project in the workspace.</p>
+      )}
       <form action={accept}>
         <button type="submit">Accept invitation</button>
       </form>

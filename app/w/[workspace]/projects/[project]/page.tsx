@@ -9,7 +9,7 @@ import { archiveProjectAction, createTaskAction, moveTaskAction } from "../../ac
 export default async function Board(props: PageProps<"/w/[workspace]/projects/[project]">) {
   const { workspace: slug, project: projectId } = await props.params;
   const access = await workspaceAccess(slug);
-  const project = await projectIn(access.workspace.id, projectId);
+  const project = await projectIn(access, projectId);
   if (!project) notFound();
   const tasks = await tasksIn(project.id);
   const canEdit = can(access.role, "task.edit") && !project.archived_at;

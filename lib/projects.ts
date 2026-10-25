@@ -1,23 +1,32 @@
+import type { Access } from "./access";
 import { one, query } from "./db";
 
 export type Project = { id: string; name: string; archived_at: Date | null; open_tasks: number };
 
-export function projectsIn(workspaceId: string): Promise<Project[]> {
+// Guests see only the projects they were invited to; owners and members see the whole workspace.
+// Every query that reads projects or tasks for someone puts this in its where clause and passes scope(access) as $1 and $2.
+export const visibleProject = `p.workspace_id = $1
+  and ($2::uuid is null or p.id in (select project_id from project_guests where workspace_id = $1 and user_id = $2))`;
+
+export function scope(access: Access): [string, string | null] {
+  return [access.workspace.id, access.role === "guest" ? access.user.id : null];
+}
+
+export function projectsIn(access: Access): Promise<Project[]> {
   return query<Project>(
     `select p.id, p.name, p.archived_at,
        (select count(*)::int from tasks t where t.project_id = p.id and t.status <> 'done') as open_tasks
-     from projects p where p.workspace_id = $1
+     from projects p where ${visibleProject}
      order by p.archived_at is not null, p.created_at`,
-    [workspaceId],
+    scope(access),
   );
 }
 
-// Scoped to the workspace, so an id from another workspace finds nothing.
-export function projectIn(workspaceId: string, projectId: string): Promise<Project | undefined> {
-  return one<Project>(
-    `select p.id, p.name, p.archived_at, 0 as open_tasks from projects p where p.workspace_id = $1 and p.id = $2`,
-    [workspaceId, projectId],
-  );
+export function projectIn(access: Access, projectId: string): Promise<Project | undefined> {
+  return one<Project>(`select p.id, p.name, p.archived_at, 0 as open_tasks from projects p where ${visibleProject} and p.id = $3`, [
+    ...scope(access),
+    projectId,
+  ]);
 }
 
 export async function createProject(workspaceId: string, name: string): Promise<string> {
