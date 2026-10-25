@@ -7,7 +7,7 @@ import { createProjectAction } from "./actions";
 export default async function Projects(props: PageProps<"/w/[workspace]">) {
   const { workspace: slug } = await props.params;
   const access = await workspaceAccess(slug);
-  const projects = await projectsIn(access.workspace.id);
+  const projects = await projectsIn(access);
   const active = projects.filter((project) => !project.archived_at);
   const archived = projects.filter((project) => project.archived_at);
 

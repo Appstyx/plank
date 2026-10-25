@@ -1,4 +1,6 @@
+import type { Access } from "./access";
 import { one, query, transaction } from "./db";
+import { scope, visibleProject } from "./projects";
 
 export const statuses = ["todo", "doing", "done"] as const;
 export type Status = (typeof statuses)[number];
@@ -29,13 +31,13 @@ export function tasksIn(projectId: string): Promise<Task[]> {
   );
 }
 
-export function taskIn(workspaceId: string, taskId: string): Promise<(Task & { project_name: string }) | undefined> {
+export function taskIn(access: Access, taskId: string): Promise<(Task & { project_name: string }) | undefined> {
   return one(
     `select ${taskColumns}, p.name as project_name from tasks t
      join projects p on p.id = t.project_id
      left join users a on a.id = t.assignee_id
-     where p.workspace_id = $1 and t.id = $2`,
-    [workspaceId, taskId],
+     where ${visibleProject} and t.id = $3`,
+    [...scope(access), taskId],
   );
 }
 
